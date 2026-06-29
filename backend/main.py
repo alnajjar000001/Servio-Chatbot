@@ -10,8 +10,8 @@ import os
 
 _extra_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
 _origins = [o.strip() for o in _extra_origins if o.strip()] + [
-    "http://localhost:3000",
-    "http://localhost:3001",
+    "https://servio-chatbot.netlify.app/",
+    "https://servio-chatbot.netlify.app/",
 ]
 
 app.add_middleware(
