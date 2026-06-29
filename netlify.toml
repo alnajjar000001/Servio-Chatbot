@@ -1,0 +1,10 @@
+[build]
+  command   = "npm run build"
+  publish   = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Essential Next.js plugin — Netlify auto-installs this for App Router support
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

@@ -1,0 +1,22 @@
+# Next.js
+node_modules/
+.next/
+out/
+.env.local
+.env*.local
+
+# Backend secrets — NEVER commit
+backend/.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+backend/venv/
+backend/env/
+backend/.venv/
+*.egg-info/
+
+# System
+.DS_Store
+Thumbs.db
