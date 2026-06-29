@@ -6,9 +6,17 @@ from orchestrator import run_orchestration
 
 app = FastAPI(title="Servio AI Backend", version="2.0.0")
 
+import os
+
+_extra_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
+_origins = [o.strip() for o in _extra_origins if o.strip()] + [
+    "http://localhost:3000",
+    "http://localhost:3001",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
