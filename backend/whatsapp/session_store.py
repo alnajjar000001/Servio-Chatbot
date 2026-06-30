@@ -1,27 +1,53 @@
 """
-In-memory WhatsApp session store.
-Each WhatsApp user (identified by phone number) gets their own conversation
-history and session context so the orchestrator stays fully stateless.
+Per-user WhatsApp session: state machine data + deduplication.
 Sessions expire after 24 hours of inactivity.
 """
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from enum import Enum
 
 from models.schemas import SessionContext
 
 
+class FlowState(str, Enum):
+    IDLE            = "idle"
+    AWAITING_PHONE  = "awaiting_phone"
+    VERIFIED        = "verified"
+    CONFIRMING_ORDER = "confirming_order"
+    REG_NAME        = "reg_name"
+    REG_PHONE       = "reg_phone"
+    REG_GOV         = "reg_gov"
+    REG_AREA        = "reg_area"
+    REG_BLOCK       = "reg_block"
+    REG_STREET      = "reg_street"
+    REG_CONFIRM     = "reg_confirm"
+
+
+@dataclass
+class RegData:
+    """Collects fields needed for new-customer registration."""
+    name: str = ""
+    phone: str = ""
+    gov_id: str = ""
+    gov_name: str = ""
+    area_id: str = ""
+    area_name: str = ""
+    block: str = ""
+    street: str = ""
+
+
 @dataclass
 class WASession:
-    conversation_history: list[dict] = field(default_factory=list)
+    state: FlowState = FlowState.IDLE
     session_context: SessionContext = field(default_factory=SessionContext)
-    last_active: datetime = field(default_factory=datetime.utcnow)
+    reg: RegData = field(default_factory=RegData)
     processed_ids: set[str] = field(default_factory=set)
+    last_active: datetime = field(default_factory=datetime.utcnow)
 
 
 class SessionStore:
     _TTL = timedelta(hours=24)
-    _MAX_HISTORY = 40   # keep last 20 turns (user + assistant pairs)
 
     def __init__(self) -> None:
         self._store: dict[str, WASession] = {}
@@ -35,29 +61,17 @@ class SessionStore:
         return s
 
     def is_duplicate(self, phone: str, msg_id: str) -> bool:
-        """Return True and skip processing if this message ID was already handled."""
         s = self.get(phone)
         if msg_id in s.processed_ids:
             return True
         s.processed_ids.add(msg_id)
-        # Prevent unbounded growth of the seen-IDs set
         if len(s.processed_ids) > 500:
             s.processed_ids = set(list(s.processed_ids)[-100:])
         return False
-
-    def append_turn(self, phone: str, user_msg: str, ai_msg: str) -> None:
-        s = self.get(phone)
-        s.conversation_history.extend([
-            {"role": "user", "content": user_msg},
-            {"role": "assistant", "content": ai_msg},
-        ])
-        # Trim to last _MAX_HISTORY messages to stay within token limits
-        s.conversation_history = s.conversation_history[-self._MAX_HISTORY:]
 
     def _evict(self) -> None:
         cutoff = datetime.utcnow() - self._TTL
         self._store = {k: v for k, v in self._store.items() if v.last_active >= cutoff}
 
 
-# Module-level singleton — shared across all requests in the process
 store = SessionStore()
