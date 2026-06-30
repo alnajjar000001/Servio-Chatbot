@@ -30,6 +30,49 @@ async def health():
     return {"status": "ok", "service": "servio-ai-backend"}
 
 
+@app.get("/debug/govs")
+async def debug_govs(gov_id: str = "1"):
+    """Temporary debug endpoint — shows raw API responses for governorates and areas."""
+    from tools.get_governorates import execute_get_governorates
+    from tools.get_areas import execute_get_areas_by_governorate
+
+    govs_raw  = await execute_get_governorates()
+    areas_raw = await execute_get_areas_by_governorate(governorate_id=gov_id)
+
+    def _try_list(r):
+        if isinstance(r, list):
+            return r
+        if isinstance(r, dict):
+            raw = r.get("data")
+            if isinstance(raw, list):
+                return raw
+            if isinstance(raw, dict):
+                inner = raw.get("data")
+                if isinstance(inner, list):
+                    return inner
+            for v in r.values():
+                if isinstance(v, list):
+                    return v
+        return []
+
+    govs_parsed  = _try_list(govs_raw)
+    areas_parsed = _try_list(areas_raw)
+
+    return {
+        "governorates": {
+            "raw": govs_raw,
+            "parsed_count": len(govs_parsed),
+            "first_item": govs_parsed[0] if govs_parsed else None,
+        },
+        "areas": {
+            "gov_id_used": gov_id,
+            "raw": areas_raw,
+            "parsed_count": len(areas_parsed),
+            "first_item": areas_parsed[0] if areas_parsed else None,
+        },
+    }
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     try:
