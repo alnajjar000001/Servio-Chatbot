@@ -149,7 +149,7 @@ async def handle(sender: str, text: str, interactive_id: str | None = None) -> N
     elif state == FlowState.REG_GOV:
         await _handle_reg_gov(sender, inp, session)
     elif state == FlowState.REG_AREA:
-        await _handle_reg_area(sender, inp, session)
+        await _handle_reg_area(sender, text, session)   # text: user types a number
     elif state == FlowState.REG_BLOCK:
         await _handle_reg_block(sender, text, session)
     elif state == FlowState.REG_STREET:
@@ -498,39 +498,31 @@ async def _handle_reg_gov(sender: str, inp: str, session: WASession) -> None:
         await _send_gov_list(sender, session)
         return
 
-    # Cache areas — button ID is the index
-    session.area_cache = areas
-    all_rows = [
-        {
-            "id":    f"area_{i}",
-            "title": _item_name(a, "name", "areaName", "nameAr") or f"Area {i + 1}",
-        }
-        for i, a in enumerate(areas[:20])
-    ]
-    sections = [{"title": t(lang, "area_section"), "rows": all_rows[:10]}]
-    if len(all_rows) > 10:
-        sections.append({"title": t(lang, "area_section2"), "rows": all_rows[10:]})
+    # Cache the full area objects — user picks by typing a number
+    session.area_cache = areas[:30]
+
+    lines = [t(lang, "select_area"), ""]
+    for i, a in enumerate(session.area_cache):
+        name = _item_name(a, "name", "areaName", "nameAr") or f"Area {i + 1}"
+        lines.append(f"{i + 1}. {name}")
 
     session.state = FlowState.REG_AREA
-    await send_list(sender, t(lang, "select_area"), t(lang, "area_btn"), sections)
+    await send_text(sender, "\n".join(lines))
 
 
-async def _handle_reg_area(sender: str, inp: str, session: WASession) -> None:
+async def _handle_reg_area(sender: str, text: str, session: WASession) -> None:
+    """User types a number (1-based) to pick from the area list sent as plain text."""
     lang = session.lang
-    if not inp.startswith("area_"):
-        await send_text(sender, t(lang, "invalid_area"))
-        return
-
     try:
-        idx  = int(inp[5:])
+        idx  = int(text.strip()) - 1   # convert 1-based user input to 0-based index
         area = session.area_cache[idx]
     except (ValueError, IndexError):
-        await send_text(sender, t(lang, "invalid_area"))
+        await send_text(sender, t(lang, "invalid_area_num"))
         return
 
     area_id_val = _area_id(area)
     if not area_id_val:
-        await send_text(sender, t(lang, "invalid_area"))
+        await send_text(sender, t(lang, "invalid_area_num"))
         return
 
     session.reg.area_id = area_id_val
