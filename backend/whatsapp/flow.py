@@ -13,24 +13,48 @@ from tools.add_order import execute_add_cash_call_order
 from tools.get_governorates import execute_get_governorates
 from tools.get_areas import execute_get_areas_by_governorate
 from tools.add_customer import execute_add_customer
+from tools.get_problems import execute_get_order_problems
 
 from whatsapp.sender import send_text, send_buttons, send_list
 from whatsapp.session_store import WASession, FlowState, store
 
 log = logging.getLogger(__name__)
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+
+# ── Response helpers ──────────────────────────────────────────────────────────
 
 def _list_from(result) -> list:
-    """Extract a list from a raw API response (handles list or {"data": [...]} shapes)."""
+    """
+    Safely extract a list from any Servio API response shape:
+      - plain list:              [...]
+      - single-wrapped:          {"data": [...]}
+      - double-wrapped (paging): {"data": {"data": [...]}}
+    """
     if isinstance(result, list):
         return result
-    if isinstance(result, dict):
-        for key in ("data", "Data", "result", "Result"):
-            val = result.get(key)
-            if isinstance(val, list):
-                return val
+    if not isinstance(result, dict):
+        return []
+    raw = result.get("data")
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, dict):
+        inner = raw.get("data")
+        if isinstance(inner, list):
+            return inner
     return []
+
+
+def _succeeded(result) -> bool:
+    """True when the API call reports success (or when result is a non-empty list)."""
+    if isinstance(result, list):
+        return bool(result)
+    if isinstance(result, dict):
+        flag = result.get("isSucceeded")
+        if flag is not None:
+            return bool(flag)
+        # Fall back: consider success if a data list is present
+        return bool(_list_from(result))
+    return False
 
 
 def _primary_location_id(data: dict) -> str:
@@ -51,7 +75,7 @@ async def handle(sender: str, text: str, interactive_id: str | None = None) -> N
     session = store.get(sender)
     inp = (interactive_id or text or "").strip()
 
-    # Global escape: any of these sends the user back to the main menu
+    # Global escape: reset to main menu
     if inp.lower() in ("main_menu", "back", "menu", "hi", "hello", "start",
                        "مرحبا", "اهلا", "مرحبا بك"):
         await _show_main_menu(sender, session)
@@ -65,6 +89,10 @@ async def handle(sender: str, text: str, interactive_id: str | None = None) -> N
         await _handle_phone(sender, text, session)
     elif state == FlowState.VERIFIED:
         await _handle_service(sender, inp, session)
+    elif state == FlowState.SELECTING_PROBLEM:
+        await _handle_problem_selection(sender, inp, session)
+    elif state == FlowState.DESCRIBING_PROBLEM:
+        await _handle_problem_description(sender, text, session)
     elif state == FlowState.CONFIRMING_ORDER:
         await _handle_order_confirm(sender, inp, session)
     elif state == FlowState.REG_NAME:
@@ -132,7 +160,7 @@ async def _show_service_menu(sender: str, session: WASession) -> None:
     )
 
 
-# ── IDLE: main menu button selections ────────────────────────────────────────
+# ── IDLE: main menu button selections ─────────────────────────────────────────
 
 async def _handle_idle(sender: str, inp: str, session: WASession) -> None:
     if inp == "check_account":
@@ -159,8 +187,21 @@ async def _handle_phone(sender: str, text: str, session: WASession) -> None:
     await send_text(sender, "🔍 Looking up your account...")
 
     result = await execute_search_customer(phoneNumber=phone)
-    customers = _list_from(result)
 
+    if not _succeeded(result):
+        await send_buttons(
+            sender,
+            "❌ No account found for that number.\n\nWould you like to register as a new customer?",
+            [
+                {"id": "new_customer",  "title": "Register Now"},
+                {"id": "check_account", "title": "Try Again"},
+                {"id": "main_menu",     "title": "Main Menu"},
+            ],
+        )
+        session.state = FlowState.IDLE
+        return
+
+    customers = _list_from(result)
     if not customers:
         await send_buttons(
             sender,
@@ -175,10 +216,10 @@ async def _handle_phone(sender: str, text: str, session: WASession) -> None:
         return
 
     data = customers[0]
-    session.session_context.customer_id    = str(data.get("id") or data.get("customerId") or "")
-    session.session_context.customer_name  = data.get("name") or data.get("customerName") or ""
+    session.session_context.customer_id         = str(data.get("id") or data.get("customerId") or "")
+    session.session_context.customer_name       = str(data.get("name") or data.get("customerName") or "")
     session.session_context.primary_location_id = _primary_location_id(data)
-    session.session_context.customer_phone = phone
+    session.session_context.customer_phone      = phone
 
     await _show_service_menu(sender, session)
 
@@ -197,8 +238,8 @@ async def _handle_service(sender: str, inp: str, session: WASession) -> None:
             lines = ["📦 *Your Recent Orders:*\n"]
             for o in orders[:5]:
                 status    = o.get("statusName")    or o.get("status")    or "-"
-                type_name = o.get("typeName")      or o.get("orderType") or "-"
-                date      = (o.get("startDate")    or o.get("date")      or "")[:10]
+                type_name = o.get("typeName")      or o.get("orderType") or o.get("description") or "-"
+                date      = (o.get("startDate")    or o.get("orderDate") or o.get("date") or "")[:10]
                 lines.append(f"• {type_name} — {status}  ({date})")
             await send_text(sender, "\n".join(lines))
         await _show_service_menu(sender, session)
@@ -211,8 +252,8 @@ async def _handle_service(sender: str, inp: str, session: WASession) -> None:
         else:
             lines = ["📄 *Your Contracts:*\n"]
             for c in contracts[:5]:
-                name   = c.get("contractName") or c.get("name")       or "-"
-                status = c.get("statusName")   or c.get("status")     or "-"
+                name   = c.get("contractName") or c.get("customer") or c.get("name")       or "-"
+                status = c.get("contractStatus") or c.get("statusName") or c.get("status") or "-"
                 lines.append(f"• {name} — {status}")
             await send_text(sender, "\n".join(lines))
         await _show_service_menu(sender, session)
@@ -225,46 +266,109 @@ async def _handle_service(sender: str, inp: str, session: WASession) -> None:
         else:
             lines = ["🧾 *Your Invoices:*\n"]
             for inv in invoices[:5]:
-                num    = inv.get("invoiceNumber") or inv.get("number")      or "-"
-                amount = inv.get("amount")        or inv.get("totalAmount") or "-"
-                status = inv.get("statusName")    or inv.get("status")      or "-"
-                lines.append(f"• #{num}  {amount} KD — {status}")
+                num    = inv.get("invoiceNumber") or inv.get("number")                or "-"
+                amount = inv.get("amount")        or inv.get("total") or inv.get("totalAmount") or "-"
+                status = inv.get("status")        or inv.get("invoiceStatus") or inv.get("statusName") or "-"
+                lines.append(f"• #{num}  {amount} KWD — {status}")
             await send_text(sender, "\n".join(lines))
         await _show_service_menu(sender, session)
 
     elif inp == "create_order":
-        session.state = FlowState.CONFIRMING_ORDER
-        await send_buttons(
-            sender,
-            "🔧 *Create Service Request*\n\n"
-            "Shall I schedule a Cash Call service visit for your primary location?",
-            [
-                {"id": "confirm_order", "title": "Yes, Create"},
-                {"id": "cancel_order",  "title": "Cancel"},
-            ],
-        )
+        await _start_order_flow(sender, session)
 
     else:
         await _show_service_menu(sender, session)
+
+
+# ── Service request: problem → description → confirm ─────────────────────────
+
+async def _start_order_flow(sender: str, session: WASession) -> None:
+    await send_text(sender, "🔍 Loading problem types...")
+    result = await execute_get_order_problems()
+    problems = _list_from(result)
+
+    if not problems:
+        await send_text(sender, "❌ Could not load problem types. Please try again later.")
+        await _show_service_menu(sender, session)
+        return
+
+    all_rows = [
+        {
+            "id":    f"prob_{p.get('id') or p.get('problemId') or i}",
+            "title": (p.get("name") or p.get("problemName") or f"Problem {i + 1}")[:24],
+        }
+        for i, p in enumerate(problems[:20])
+    ]
+
+    sections = [{"title": "Problem Types", "rows": all_rows[:10]}]
+    if len(all_rows) > 10:
+        sections.append({"title": "More Types", "rows": all_rows[10:20]})
+
+    session.state = FlowState.SELECTING_PROBLEM
+    await send_list(
+        sender,
+        "🔧 *Create Service Request*\n\nPlease select the type of issue:",
+        "Select Problem",
+        sections,
+    )
+
+
+async def _handle_problem_selection(sender: str, inp: str, session: WASession) -> None:
+    if not inp.startswith("prob_"):
+        await send_text(sender, "Please select a problem type from the list.")
+        await _start_order_flow(sender, session)
+        return
+
+    raw_id = inp[5:]   # strip "prob_"
+    try:
+        session.pending_problem_id = int(raw_id)
+    except ValueError:
+        session.pending_problem_id = 0
+
+    # We don't know the name easily here; store the id and move on
+    session.state = FlowState.DESCRIBING_PROBLEM
+    await send_text(sender, "Please describe the issue briefly\n(e.g. *AC not working*, *water leak under sink*):")
+
+
+async def _handle_problem_description(sender: str, text: str, session: WASession) -> None:
+    session.pending_description = text.strip()
+    session.state = FlowState.CONFIRMING_ORDER
+    await send_buttons(
+        sender,
+        f"🔧 *Service Request Summary*\n\n"
+        f"Issue: {session.pending_description}\n\n"
+        f"Shall I submit this request for your primary location?",
+        [
+            {"id": "confirm_order", "title": "Yes, Submit"},
+            {"id": "cancel_order",  "title": "Cancel"},
+        ],
+    )
 
 
 async def _handle_order_confirm(sender: str, inp: str, session: WASession) -> None:
     if inp == "confirm_order":
         ctx = session.session_context
-        await send_text(sender, "⏳ Creating your service request...")
+        await send_text(sender, "⏳ Submitting your service request...")
         result = await execute_add_cash_call_order(
+            problem_id=session.pending_problem_id or 1,
+            general_note=session.pending_description or "Cash call request",
+            priority_id=2,
             customer_id=ctx.customer_id,
             customer_name=ctx.customer_name,
             location_id=ctx.primary_location_id or "0",
         )
-        if result.get("isSucceeded"):
-            await send_text(sender, "✅ Service request created!\n\nOur team will contact you shortly.")
+        if _succeeded(result):
+            await send_text(sender, "✅ Service request submitted!\n\nOur team will contact you shortly.")
         else:
             err = result.get("message") or result.get("error") or "Unknown error"
-            await send_text(sender, f"❌ Could not create the request: {err}")
+            await send_text(sender, f"❌ Could not submit the request: {err}")
     else:
         await send_text(sender, "Request cancelled.")
 
+    # Clear pending order data
+    session.pending_problem_id   = 0
+    session.pending_problem_name = ""
+    session.pending_description  = ""
     await _show_service_menu(sender, session)
 
 
@@ -286,14 +390,14 @@ async def _send_gov_list(sender: str, session: WASession) -> None:
     result = await execute_get_governorates()
     govs = _list_from(result)
     if not govs:
-        await send_text(sender, "Could not load governorates. Please try again later.")
+        await send_text(sender, "❌ Could not load governorates. Please try again later.")
         await _show_main_menu(sender, session)
         return
 
     rows = [
         {
             "id":    f"gov_{g.get('id') or g.get('governorateId') or i}",
-            "title": (g.get("name") or g.get("governorateName") or f"Gov {i}")[:24],
+            "title": (g.get("name") or g.get("governorateName") or f"Governorate {i + 1}")[:24],
         }
         for i, g in enumerate(govs[:10])
     ]
@@ -312,27 +416,24 @@ async def _handle_reg_gov(sender: str, inp: str, session: WASession) -> None:
         await _send_gov_list(sender, session)
         return
 
-    session.reg.gov_id = inp.removeprefix("gov_")
+    session.reg.gov_id = inp[4:]   # strip "gov_"
     await send_text(sender, "📍 Fetching areas...")
 
     result = await execute_get_areas_by_governorate(governorate_id=session.reg.gov_id)
     areas = _list_from(result)
     if not areas:
-        await send_text(sender, "Could not load areas. Please try again.")
+        await send_text(sender, "❌ Could not load areas. Please try again.")
         await _send_gov_list(sender, session)
         return
 
-    # Build sections of max 10 rows (WhatsApp list limit)
     all_rows = [
         {
             "id":    f"area_{a.get('id') or a.get('areaId') or i}",
-            "title": (a.get("name") or a.get("areaName") or f"Area {i}")[:24],
+            "title": (a.get("name") or a.get("areaName") or f"Area {i + 1}")[:24],
         }
         for i, a in enumerate(areas[:20])
     ]
-    sections = [
-        {"title": "Areas", "rows": all_rows[:10]},
-    ]
+    sections = [{"title": "Areas", "rows": all_rows[:10]}]
     if len(all_rows) > 10:
         sections.append({"title": "More Areas", "rows": all_rows[10:20]})
 
@@ -349,7 +450,7 @@ async def _handle_reg_area(sender: str, inp: str, session: WASession) -> None:
     if not inp.startswith("area_"):
         await send_text(sender, "Please select an area from the list.")
         return
-    session.reg.area_id = inp.removeprefix("area_")
+    session.reg.area_id = inp[5:]   # strip "area_"
     session.state = FlowState.REG_BLOCK
     await send_text(sender, "Please enter your *block number*:")
 
@@ -397,21 +498,23 @@ async def _handle_reg_confirm(sender: str, inp: str, session: WASession) -> None
         street=reg.street,
     )
 
-    if not (result.get("isSucceeded") or result.get("id")):
+    if not (_succeeded(result) or result.get("id") or result.get("customerId")):
         err = result.get("message") or result.get("error") or "Unknown error"
-        await send_text(sender, f"❌ Registration failed: {err}\n\nType *menu* to start over.")
+        await send_text(sender, f"❌ Registration failed: {err}\n\nType *hi* to start over.")
         session.state = FlowState.IDLE
         return
 
-    # Auto-verify: look up the new customer immediately
+    # Auto-verify: look up the newly registered customer
     lookup = await execute_search_customer(phoneNumber=reg.phone)
     customers = _list_from(lookup)
     if customers:
         data = customers[0]
-        session.session_context.customer_id    = str(data.get("id") or data.get("customerId") or "")
-        session.session_context.customer_name  = data.get("name") or reg.name
+        session.session_context.customer_id         = str(data.get("id") or data.get("customerId") or "")
+        session.session_context.customer_name       = str(data.get("name") or data.get("customerName") or reg.name)
         session.session_context.primary_location_id = _primary_location_id(data)
-        session.session_context.customer_phone = reg.phone
+        session.session_context.customer_phone      = reg.phone
+    else:
+        session.session_context.customer_name = reg.name
 
-    await send_text(sender, f"✅ Welcome to Servio, *{reg.name}*! Your account has been created.")
+    await send_text(sender, f"✅ Welcome to Servio, *{session.session_context.customer_name}*! Your account has been created.")
     await _show_service_menu(sender, session)

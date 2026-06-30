@@ -11,17 +11,19 @@ from models.schemas import SessionContext
 
 
 class FlowState(str, Enum):
-    IDLE            = "idle"
-    AWAITING_PHONE  = "awaiting_phone"
-    VERIFIED        = "verified"
-    CONFIRMING_ORDER = "confirming_order"
-    REG_NAME        = "reg_name"
-    REG_PHONE       = "reg_phone"
-    REG_GOV         = "reg_gov"
-    REG_AREA        = "reg_area"
-    REG_BLOCK       = "reg_block"
-    REG_STREET      = "reg_street"
-    REG_CONFIRM     = "reg_confirm"
+    IDLE               = "idle"
+    AWAITING_PHONE     = "awaiting_phone"
+    VERIFIED           = "verified"
+    SELECTING_PROBLEM  = "selecting_problem"
+    DESCRIBING_PROBLEM = "describing_problem"
+    CONFIRMING_ORDER   = "confirming_order"
+    REG_NAME           = "reg_name"
+    REG_PHONE          = "reg_phone"
+    REG_GOV            = "reg_gov"
+    REG_AREA           = "reg_area"
+    REG_BLOCK          = "reg_block"
+    REG_STREET         = "reg_street"
+    REG_CONFIRM        = "reg_confirm"
 
 
 @dataclass
@@ -42,6 +44,10 @@ class WASession:
     state: FlowState = FlowState.IDLE
     session_context: SessionContext = field(default_factory=SessionContext)
     reg: RegData = field(default_factory=RegData)
+    # Pending order fields — filled during service-request creation
+    pending_problem_id: int = 0
+    pending_problem_name: str = ""
+    pending_description: str = ""
     processed_ids: set[str] = field(default_factory=set)
     last_active: datetime = field(default_factory=datetime.utcnow)
 
