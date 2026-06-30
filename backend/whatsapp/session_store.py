@@ -1,5 +1,5 @@
 """
-Per-user WhatsApp session: state machine data + deduplication.
+Per-user WhatsApp session: state machine + language preference + deduplication.
 Sessions expire after 24 hours of inactivity.
 """
 
@@ -11,6 +11,7 @@ from models.schemas import SessionContext
 
 
 class FlowState(str, Enum):
+    SELECTING_LANG     = "selecting_lang"    # very first interaction — pick language
     IDLE               = "idle"
     AWAITING_PHONE     = "awaiting_phone"
     VERIFIED           = "verified"
@@ -28,26 +29,31 @@ class FlowState(str, Enum):
 
 @dataclass
 class RegData:
-    """Collects fields needed for new-customer registration."""
+    """Fields collected during new-customer registration."""
     name: str = ""
     phone: str = ""
     gov_id: str = ""
-    gov_name: str = ""
     area_id: str = ""
-    area_name: str = ""
     block: str = ""
     street: str = ""
 
 
 @dataclass
 class WASession:
-    state: FlowState = FlowState.IDLE
+    state: FlowState = FlowState.SELECTING_LANG   # start with language selection
+    lang: str = "en"
     session_context: SessionContext = field(default_factory=SessionContext)
     reg: RegData = field(default_factory=RegData)
-    # Pending order fields — filled during service-request creation
+
+    # Pending service-request fields
     pending_problem_id: int = 0
-    pending_problem_name: str = ""
     pending_description: str = ""
+
+    # Temp caches: store full API objects so we use the correct IDs
+    # regardless of which field name the API uses (id / governorateId / areaId …)
+    gov_cache: list[dict] = field(default_factory=list)
+    area_cache: list[dict] = field(default_factory=list)
+
     processed_ids: set[str] = field(default_factory=set)
     last_active: datetime = field(default_factory=datetime.utcnow)
 
