@@ -3,8 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from models.schemas import ChatRequest, ChatResponse
 from orchestrator import run_orchestration
+from whatsapp.webhook import router as whatsapp_router
 
-app = FastAPI(title="Servio AI Backend", version="2.0.0")
+app = FastAPI(title="Servio AI Backend", version="3.0.0")
+app.include_router(whatsapp_router)
 
 import os
 

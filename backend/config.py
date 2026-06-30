@@ -9,6 +9,11 @@ class Settings(BaseSettings):
     servio_api_token: str = ""
     max_tokens: int = 4096
 
+    # WhatsApp Business Cloud API (Meta Graph API)
+    whatsapp_phone_number_id: str = ""   # from Meta Developer Console
+    whatsapp_access_token: str = ""      # permanent system-user token
+    whatsapp_verify_token: str = ""      # secret you choose for webhook verification
+
     model_config = ConfigDict(env_file=".env")
 
 
