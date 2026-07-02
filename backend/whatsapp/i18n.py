@@ -45,16 +45,14 @@ _T: dict[str, dict[str, str]] = {
         "no_orders":        "📦 No orders found for your account.",
         "contracts_header": "📄 *Your Contracts:*\n",
         "no_contracts":     "📄 No contracts found for your account.",
+        "contract_line":    "• Contract No: {number} — Status: {status}",
         "invoices_header":  "🧾 *Your Invoices:*\n",
         "no_invoices":      "🧾 No invoices found for your account.",
 
         # Service request
         "loading_problems":  "🔍 Loading problem types...",
         "no_problems":       "❌ Could not load problem types. Please try again.",
-        "select_problem":    "🔧 *Create Service Request*\n\nPlease select the type of issue:",
-        "problem_section":   "Problem Types",
-        "more_problems":     "More Types",
-        "select_prob_btn":   "Select Problem",
+        "select_problem":    "🔧 *Create Service Request*\n\nPlease select the type of issue by replying with its number:",
         "ask_description":   "Please describe the issue briefly\n(e.g. *AC not working*, *water leak*):",
         "order_summary":     "🔧 *Service Request Summary*\n\nIssue: {desc}\n\nSubmit for your primary location?",
         "btn_yes_submit":    "Yes, Submit",
@@ -104,7 +102,7 @@ _T: dict[str, dict[str, str]] = {
         "generic_error": "Sorry, something went wrong. Please type *hi* to try again.",
         "invalid_gov":   "Please select a governorate from the list.",
         "invalid_area":  "Please select an area from the list.",
-        "invalid_prob":  "Please select a problem type from the list.",
+        "invalid_prob":  "Please reply with a valid number from the list above.",
     },
 
     "ar": {
@@ -151,16 +149,14 @@ _T: dict[str, dict[str, str]] = {
         "no_orders":        "📦 لا توجد طلبات في حسابك.",
         "contracts_header": "📄 *عقودك:*\n",
         "no_contracts":     "📄 لا توجد عقود في حسابك.",
+        "contract_line":    "• رقم العقد: {number} — الحالة: {status}",
         "invoices_header":  "🧾 *فواتيرك:*\n",
         "no_invoices":      "🧾 لا توجد فواتير في حسابك.",
 
         # Service request
         "loading_problems": "🔍 جاري تحميل أنواع المشاكل...",
         "no_problems":      "❌ تعذّر تحميل أنواع المشاكل. حاول مجدداً.",
-        "select_problem":   "🔧 *طلب خدمة جديد*\n\nاختر نوع المشكلة:",
-        "problem_section":  "أنواع المشاكل",
-        "more_problems":    "المزيد",
-        "select_prob_btn":  "اختر المشكلة",
+        "select_problem":   "🔧 *طلب خدمة جديد*\n\nاختر نوع المشكلة بإرسال رقمها:",
         "ask_description":  "صف المشكلة بإيجاز\n(مثال: *المكيف لا يعمل*، *تسرب مياه*):",
         "order_summary":    "🔧 *ملخص طلب الخدمة*\n\nالمشكلة: {desc}\n\nإرسال الطلب لموقعك الأساسي؟",
         "btn_yes_submit":   "نعم، أرسل",
@@ -210,7 +206,7 @@ _T: dict[str, dict[str, str]] = {
         "generic_error": "عذراً، حدث خطأ. اكتب *مرحبا* للمحاولة مجدداً.",
         "invalid_gov":   "اختر محافظة من القائمة.",
         "invalid_area":  "اختر منطقة من القائمة.",
-        "invalid_prob":  "اختر نوع المشكلة من القائمة.",
+        "invalid_prob":  "أرسل رقماً صحيحاً من القائمة أعلاه.",
     },
 }
 

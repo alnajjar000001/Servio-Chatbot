@@ -53,6 +53,7 @@ class WASession:
     # regardless of which field name the API uses (id / governorateId / areaId …)
     gov_cache: list[dict] = field(default_factory=list)
     area_cache: list[dict] = field(default_factory=list)
+    problem_cache: list[dict] = field(default_factory=list)
 
     processed_ids: set[str] = field(default_factory=set)
     last_active: datetime = field(default_factory=datetime.utcnow)

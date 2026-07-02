@@ -294,7 +294,7 @@ async def _handle_service(sender: str, inp: str, session: WASession) -> None:
             lines = [t(lang, "orders_header")]
             for o in orders[:5]:
                 status    = _item_name(o, "statusName", "status") or "-"
-                type_name = _item_name(o, "typeName", "orderType", "description", "problemName") or "-"
+                type_name = _item_name(o, "orderProblem", "typeName", "orderType", "description", "problemName") or "-"
                 date      = (_item_name(o, "startDate", "orderDate", "date") or "")[:10]
                 lines.append(f"• {type_name} — {status}  ({date})")
             await send_text(sender, "\n".join(lines))
@@ -308,9 +308,9 @@ async def _handle_service(sender: str, inp: str, session: WASession) -> None:
         else:
             lines = [t(lang, "contracts_header")]
             for c in contracts[:5]:
-                name   = _item_name(c, "contractName", "customer", "name") or "-"
+                number = _item_name(c, "contractNumber", "contractName", "number") or "-"
                 status = _item_name(c, "contractStatus", "statusName", "status") or "-"
-                lines.append(f"• {name} — {status}")
+                lines.append(t(lang, "contract_line", number=number, status=status))
             await send_text(sender, "\n".join(lines))
         await _show_service_menu(sender, session)
 
@@ -351,37 +351,28 @@ async def _start_order_flow(sender: str, session: WASession) -> None:
         return
 
     # Cache full objects so _handle_problem_selection can get the correct ID
-    session.gov_cache = problems   # reusing gov_cache field for problems temporarily
+    session.problem_cache = problems[:30]
 
-    all_rows = [
-        {
-            "id":    f"prob_{i}",
-            "title": _item_name(p, "name", "problemName", "nameAr") or f"Problem {i + 1}",
-        }
-        for i, p in enumerate(problems[:20])
-    ]
-    sections = [{"title": t(lang, "problem_section"), "rows": all_rows[:10]}]
-    if len(all_rows) > 10:
-        sections.append({"title": t(lang, "more_problems"), "rows": all_rows[10:]})
+    lines = [t(lang, "select_problem"), ""]
+    for i, p in enumerate(session.problem_cache):
+        name = _item_name(p, "name", "problemName", "nameAr") or f"Problem {i + 1}"
+        lines.append(f"{i + 1}. {name}")
 
     session.state = FlowState.SELECTING_PROBLEM
-    await send_list(sender, t(lang, "select_problem"), t(lang, "select_prob_btn"), sections)
+    await send_text(sender, "\n".join(lines))
 
 
 async def _handle_problem_selection(sender: str, inp: str, session: WASession) -> None:
+    """User types a number (1-based) to pick from the problem list sent as plain text."""
     lang = session.lang
-    if not inp.startswith("prob_"):
+    try:
+        idx  = int(inp.strip()) - 1   # convert 1-based user input to 0-based index
+        prob = session.problem_cache[idx]
+    except (ValueError, IndexError):
         await send_text(sender, t(lang, "invalid_prob"))
-        await _start_order_flow(sender, session)
         return
 
-    try:
-        idx = int(inp[5:])
-        prob = session.gov_cache[idx]   # gov_cache is holding the problems list here
-        session.pending_problem_id = int(prob.get("id") or prob.get("problemId") or 1)
-    except (ValueError, IndexError):
-        session.pending_problem_id = 1
-
+    session.pending_problem_id = int(prob.get("id") or prob.get("problemId") or 1)
     session.state = FlowState.DESCRIBING_PROBLEM
     await send_text(sender, t(lang, "ask_description"))
 
@@ -423,7 +414,7 @@ async def _handle_order_confirm(sender: str, inp: str, session: WASession) -> No
 
     session.pending_problem_id  = 0
     session.pending_description = ""
-    session.gov_cache           = []
+    session.problem_cache       = []
     await _show_service_menu(sender, session)
 
 

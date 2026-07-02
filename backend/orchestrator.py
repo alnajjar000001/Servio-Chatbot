@@ -193,7 +193,7 @@ def _extract_contracts(result: dict) -> list[dict]:
         status = "expired" if ("expired" in s or "cancel" in s) else "active" if "active" in s else "pending"
         out.append({
             "id": str(c.get("contractNumber") or c.get("id") or ""),
-            "title": str(c.get("customer") or c.get("contractNumber") or ""),
+            "title": str(c.get("contractNumber") or c.get("id") or ""),
             "status": status,
             "startDate": (c.get("startDate") or "")[:10],
             "endDate": (c.get("endDate") or "")[:10],
@@ -204,20 +204,21 @@ def _extract_contracts(result: dict) -> list[dict]:
 def _extract_orders(result: dict) -> list[dict]:
     out = []
     for o in _items(result):
-        s = (o.get("status") or o.get("orderStatus") or "").lower()
+        s = (o.get("statusName") or o.get("status") or o.get("orderStatus") or "").lower()
         status = (
+            "cancelled" if "cancel" in s else
             "completed" if ("complete" in s or "done" in s or "close" in s) else
             "in-progress" if ("progress" in s or "assigned" in s) else
             "open"
         )
         out.append({
-            "id": str(o.get("orderNumber") or o.get("id") or ""),
+            "id": str(o.get("orderNo") or o.get("orderNumber") or o.get("id") or ""),
             "description": str(
-                o.get("description") or o.get("problemName") or o.get("name") or ""
+                o.get("orderProblem") or o.get("description") or o.get("problemName") or o.get("name") or ""
             ),
             "status": status,
             "date": (
-                o.get("orderDate") or o.get("startDate") or o.get("createdDate") or ""
+                o.get("startDate") or o.get("orderDate") or o.get("createdDate") or ""
             )[:10],
         })
     return out

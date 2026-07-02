@@ -60,7 +60,7 @@ function ContractItem({ item }: { item: Contract }) {
   return (
     <div className="px-4 py-3 flex items-start justify-between gap-3 hover:bg-slate-50 transition-colors">
       <div className="min-w-0">
-        <p className="text-xs font-medium text-slate-700 truncate">{item.title}</p>
+        <p className="text-xs font-medium text-slate-700 truncate">Contract No: {item.title}</p>
         <p className="text-[10px] text-slate-400 mt-0.5">
           {item.startDate} → {item.endDate}
         </p>
