@@ -13,6 +13,7 @@ from fastapi.responses import PlainTextResponse
 
 from config import settings
 from whatsapp.flow import handle
+from whatsapp.i18n import t
 from whatsapp.sender import send_text
 from whatsapp.session_store import store
 
@@ -90,6 +91,7 @@ async def _dispatch(sender: str, text: str, interactive_id: str | None, msg_id: 
     except Exception as exc:
         log.error("Flow error for %s: %s", sender, exc)
         try:
-            await send_text(sender, "Sorry, something went wrong. Please type *hi* to start again.")
+            lang = store.get(sender).lang
+            await send_text(sender, t(lang, "generic_error"))
         except Exception:
             pass
