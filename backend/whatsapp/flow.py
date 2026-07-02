@@ -139,12 +139,12 @@ async def handle(sender: str, text: str, interactive_id: str | None = None) -> N
     # Arabic escape words: switch language and reset
     if inp in _ESCAPE_AR:
         session.lang = "ar"
-        await _show_main_menu(sender, session)
+        await _enter_idle(sender, session)
         return
     # English escape words: switch language and reset
     if inp.lower() in _ESCAPE_EN:
         session.lang = "en"
-        await _show_main_menu(sender, session)
+        await _enter_idle(sender, session)
         return
 
     state = session.state
@@ -178,7 +178,7 @@ async def handle(sender: str, text: str, interactive_id: str | None = None) -> N
     elif state == FlowState.REG_CONFIRM:
         await _handle_reg_confirm(sender, inp, session)
     else:
-        await _show_main_menu(sender, session)
+        await _enter_idle(sender, session)
 
 
 # ── Language selection (first-ever contact) ───────────────────────────────────
@@ -206,6 +206,46 @@ async def _handle_lang_select(sender: str, inp: str, session: WASession) -> None
         if detected:
             session.lang = detected
         # else keep default "en"
+    await _enter_idle(sender, session)
+
+
+# ── Auto-login by WhatsApp sender number ────────────────────────────────────────
+
+async def _try_auto_login(sender: str, session: WASession) -> bool:
+    """
+    Silently look up the account for the number the customer is messaging from.
+    Returns True (and shows the service menu) on a match; False leaves the
+    session untouched so the caller can fall back to the main menu.
+    """
+    try:
+        result = await execute_search_customer(phoneNumber=sender)
+    except Exception:
+        return False
+
+    customers = _list_from(result)
+    if not customers or not _succeeded(result):
+        return False
+
+    data = customers[0]
+    session.session_context.customer_id         = str(data.get("id") or data.get("customerId") or "")
+    session.session_context.customer_name       = str(data.get("name") or data.get("customerName") or "")
+    session.session_context.primary_location_id = _primary_location_id(data)
+    session.session_context.customer_phone      = sender
+    await _show_service_menu(sender, session)
+    return True
+
+
+async def _enter_idle(sender: str, session: WASession) -> None:
+    """
+    Route a not-yet-identified session straight to the service menu if the
+    WhatsApp sender number matches an existing account (tried once per
+    session); otherwise fall back to the main menu, from which the customer
+    can still look up any account — including their own — via "Check Account".
+    """
+    if not session.auto_login_attempted and not session.session_context.customer_id:
+        session.auto_login_attempted = True
+        if await _try_auto_login(sender, session):
+            return
     await _show_main_menu(sender, session)
 
 

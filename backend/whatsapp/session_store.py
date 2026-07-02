@@ -45,6 +45,10 @@ class WASession:
     session_context: SessionContext = field(default_factory=SessionContext)
     reg: RegData = field(default_factory=RegData)
 
+    # Whether we've already tried to auto-identify this session from its
+    # WhatsApp sender number (so we only try once, not on every "hi")
+    auto_login_attempted: bool = False
+
     # Pending service-request fields
     pending_problem_id: int = 0
     pending_description: str = ""
