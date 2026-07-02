@@ -52,7 +52,7 @@ _T: dict[str, dict[str, str]] = {
         # Service request
         "loading_problems":  "🔍 Loading problem types...",
         "no_problems":       "❌ Could not load problem types. Please try again.",
-        "select_problem":    "🔧 *Create Service Request*\n\nPlease select the type of issue by replying with its number:",
+        "select_problem":    "🔧 *Create Service Request*\n\nPlease select the type of issue:",
         "ask_description":   "Please describe the issue briefly\n(e.g. *AC not working*, *water leak*):",
         "order_summary":     "🔧 *Service Request Summary*\n\nIssue: {desc}\n\nSubmit for your primary location?",
         "btn_yes_submit":    "Yes, Submit",
@@ -79,11 +79,12 @@ _T: dict[str, dict[str, str]] = {
         "gov_btn":        "Choose Governorate",
         "loading_areas":  "📍 Fetching areas...",
         "no_areas":       "❌ Could not load areas. Please try again.",
-        "select_area":    "Please select your *area* by replying with its number:",
+        "select_area":    "Please select your *area*:",
         "area_section":   "Areas",
-        "area_section2":  "More Areas",
         "area_btn":       "Choose Area",
-        "invalid_area_num": "Please reply with a valid number from the list above.",
+        "invalid_area_num": "Please select an area from the list.",
+        "more_options":   "➡️ More Options",
+        "prev_page":      "⬅️ Previous",
         "ask_block":      "Please enter your *block number*:",
         "ask_street":     "Please enter your *street name or number*:",
         "reg_summary": (
@@ -102,7 +103,7 @@ _T: dict[str, dict[str, str]] = {
         "generic_error": "Sorry, something went wrong. Please type *hi* to try again.",
         "invalid_gov":   "Please select a governorate from the list.",
         "invalid_area":  "Please select an area from the list.",
-        "invalid_prob":  "Please reply with a valid number from the list above.",
+        "invalid_prob":  "Please select a problem type from the list.",
     },
 
     "ar": {
@@ -156,7 +157,7 @@ _T: dict[str, dict[str, str]] = {
         # Service request
         "loading_problems": "🔍 جاري تحميل أنواع المشاكل...",
         "no_problems":      "❌ تعذّر تحميل أنواع المشاكل. حاول مجدداً.",
-        "select_problem":   "🔧 *طلب خدمة جديد*\n\nاختر نوع المشكلة بإرسال رقمها:",
+        "select_problem":   "🔧 *طلب خدمة جديد*\n\nاختر نوع المشكلة:",
         "ask_description":  "صف المشكلة بإيجاز\n(مثال: *المكيف لا يعمل*، *تسرب مياه*):",
         "order_summary":    "🔧 *ملخص طلب الخدمة*\n\nالمشكلة: {desc}\n\nإرسال الطلب لموقعك الأساسي؟",
         "btn_yes_submit":   "نعم، أرسل",
@@ -183,11 +184,12 @@ _T: dict[str, dict[str, str]] = {
         "gov_btn":        "اختر المحافظة",
         "loading_areas":  "📍 جاري تحميل المناطق...",
         "no_areas":       "❌ تعذّر تحميل المناطق. حاول مجدداً.",
-        "select_area":    "اختر *منطقتك* بإرسال رقمها:",
+        "select_area":    "اختر *منطقتك*:",
         "area_section":   "المناطق",
-        "area_section2":  "مناطق أخرى",
         "area_btn":       "اختر المنطقة",
-        "invalid_area_num": "أرسل رقماً صحيحاً من القائمة أعلاه.",
+        "invalid_area_num": "اختر منطقة من القائمة.",
+        "more_options":   "➡️ المزيد من الخيارات",
+        "prev_page":      "⬅️ السابق",
         "ask_block":      "أدخل *رقم القطعة*:",
         "ask_street":     "أدخل *اسم أو رقم الشارع*:",
         "reg_summary": (
@@ -206,7 +208,7 @@ _T: dict[str, dict[str, str]] = {
         "generic_error": "عذراً، حدث خطأ. اكتب *مرحبا* للمحاولة مجدداً.",
         "invalid_gov":   "اختر محافظة من القائمة.",
         "invalid_area":  "اختر منطقة من القائمة.",
-        "invalid_prob":  "أرسل رقماً صحيحاً من القائمة أعلاه.",
+        "invalid_prob":  "اختر نوع المشكلة من القائمة.",
     },
 }
 

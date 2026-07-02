@@ -84,6 +84,27 @@ def _item_name(obj: dict, *keys: str) -> str:
     return ""
 
 
+# ── Paginated WhatsApp list picker ──────────────────────────────────────────────
+# WhatsApp interactive list messages cap out at 10 rows TOTAL across all sections,
+# so any cached list longer than that has to be paged through with nav rows.
+
+_PAGE_SIZE = 8   # + up to 2 nav rows ("prev"/"more") never exceeds the 10-row cap
+
+
+def _page_rows(items: list[dict], page: int, id_prefix: str, label_fn, lang: str) -> list[dict]:
+    start = page * _PAGE_SIZE
+    chunk = items[start:start + _PAGE_SIZE]
+    rows = [
+        {"id": f"{id_prefix}_{start + i}", "title": label_fn(it, start + i)}
+        for i, it in enumerate(chunk)
+    ]
+    if page > 0:
+        rows.insert(0, {"id": f"{id_prefix}_prev", "title": t(lang, "prev_page")})
+    if start + _PAGE_SIZE < len(items):
+        rows.append({"id": f"{id_prefix}_more", "title": t(lang, "more_options")})
+    return rows
+
+
 def _primary_location_id(data: dict) -> str:
     locations = data.get("locations") or []
     if locations:
@@ -149,7 +170,7 @@ async def handle(sender: str, text: str, interactive_id: str | None = None) -> N
     elif state == FlowState.REG_GOV:
         await _handle_reg_gov(sender, inp, session)
     elif state == FlowState.REG_AREA:
-        await _handle_reg_area(sender, text, session)   # text: user types a number
+        await _handle_reg_area(sender, inp, session)
     elif state == FlowState.REG_BLOCK:
         await _handle_reg_block(sender, text, session)
     elif state == FlowState.REG_STREET:
@@ -351,25 +372,44 @@ async def _start_order_flow(sender: str, session: WASession) -> None:
         return
 
     # Cache full objects so _handle_problem_selection can get the correct ID
-    session.problem_cache = problems[:30]
-
-    lines = [t(lang, "select_problem"), ""]
-    for i, p in enumerate(session.problem_cache):
-        name = _item_name(p, "name", "problemName", "nameAr") or f"Problem {i + 1}"
-        lines.append(f"{i + 1}. {name}")
-
+    session.problem_cache = problems
+    session.problem_page  = 0
     session.state = FlowState.SELECTING_PROBLEM
-    await send_text(sender, "\n".join(lines))
+    await _send_problem_page(sender, session)
+
+
+async def _send_problem_page(sender: str, session: WASession) -> None:
+    lang = session.lang
+    rows = _page_rows(
+        session.problem_cache, session.problem_page, "prob",
+        lambda p, i: _item_name(p, "name", "problemName", "nameAr") or f"Problem {i + 1}",
+        lang,
+    )
+    await send_list(sender, t(lang, "select_problem"), t(lang, "select_prob_btn"),
+                     [{"title": t(lang, "problem_section"), "rows": rows}])
 
 
 async def _handle_problem_selection(sender: str, inp: str, session: WASession) -> None:
-    """User types a number (1-based) to pick from the problem list sent as plain text."""
     lang = session.lang
+    if inp == "prob_more":
+        session.problem_page += 1
+        await _send_problem_page(sender, session)
+        return
+    if inp == "prob_prev":
+        session.problem_page = max(0, session.problem_page - 1)
+        await _send_problem_page(sender, session)
+        return
+    if not inp.startswith("prob_"):
+        await send_text(sender, t(lang, "invalid_prob"))
+        await _send_problem_page(sender, session)
+        return
+
     try:
-        idx  = int(inp.strip()) - 1   # convert 1-based user input to 0-based index
+        idx  = int(inp[5:])
         prob = session.problem_cache[idx]
     except (ValueError, IndexError):
         await send_text(sender, t(lang, "invalid_prob"))
+        await _send_problem_page(sender, session)
         return
 
     session.pending_problem_id = int(prob.get("id") or prob.get("problemId") or 1)
@@ -415,6 +455,7 @@ async def _handle_order_confirm(sender: str, inp: str, session: WASession) -> No
     session.pending_problem_id  = 0
     session.pending_description = ""
     session.problem_cache       = []
+    session.problem_page        = 0
     await _show_service_menu(sender, session)
 
 
@@ -489,31 +530,51 @@ async def _handle_reg_gov(sender: str, inp: str, session: WASession) -> None:
         await _send_gov_list(sender, session)
         return
 
-    # Cache the full area objects — user picks by typing a number
-    session.area_cache = areas[:30]
-
-    lines = [t(lang, "select_area"), ""]
-    for i, a in enumerate(session.area_cache):
-        name = _item_name(a, "name", "areaName", "nameAr") or f"Area {i + 1}"
-        lines.append(f"{i + 1}. {name}")
-
+    # Cache the full area objects so _handle_reg_area can get the correct ID
+    session.area_cache = areas
+    session.area_page  = 0
     session.state = FlowState.REG_AREA
-    await send_text(sender, "\n".join(lines))
+    await _send_area_page(sender, session)
 
 
-async def _handle_reg_area(sender: str, text: str, session: WASession) -> None:
-    """User types a number (1-based) to pick from the area list sent as plain text."""
+async def _send_area_page(sender: str, session: WASession) -> None:
     lang = session.lang
+    rows = _page_rows(
+        session.area_cache, session.area_page, "area",
+        lambda a, i: _item_name(a, "name", "areaName", "nameAr") or f"Area {i + 1}",
+        lang,
+    )
+    await send_list(sender, t(lang, "select_area"), t(lang, "area_btn"),
+                     [{"title": t(lang, "area_section"), "rows": rows}])
+
+
+async def _handle_reg_area(sender: str, inp: str, session: WASession) -> None:
+    lang = session.lang
+    if inp == "area_more":
+        session.area_page += 1
+        await _send_area_page(sender, session)
+        return
+    if inp == "area_prev":
+        session.area_page = max(0, session.area_page - 1)
+        await _send_area_page(sender, session)
+        return
+    if not inp.startswith("area_"):
+        await send_text(sender, t(lang, "invalid_area_num"))
+        await _send_area_page(sender, session)
+        return
+
     try:
-        idx  = int(text.strip()) - 1   # convert 1-based user input to 0-based index
+        idx  = int(inp[5:])
         area = session.area_cache[idx]
     except (ValueError, IndexError):
         await send_text(sender, t(lang, "invalid_area_num"))
+        await _send_area_page(sender, session)
         return
 
     area_id_val = _area_id(area)
     if not area_id_val:
         await send_text(sender, t(lang, "invalid_area_num"))
+        await _send_area_page(sender, session)
         return
 
     session.reg.area_id = area_id_val

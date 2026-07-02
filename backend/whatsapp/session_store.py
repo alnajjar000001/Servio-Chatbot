@@ -55,6 +55,10 @@ class WASession:
     area_cache: list[dict] = field(default_factory=list)
     problem_cache: list[dict] = field(default_factory=list)
 
+    # Current page index for paginated WhatsApp list pickers (10-row cap per message)
+    area_page: int = 0
+    problem_page: int = 0
+
     processed_ids: set[str] = field(default_factory=set)
     last_active: datetime = field(default_factory=datetime.utcnow)
 
